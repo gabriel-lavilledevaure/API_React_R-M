@@ -1,2 +1,348 @@
-/* index.css */
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
+
+:root {
+  /* ========================================
+     COULEURS GÉNÉRALES
+  ======================================== */
+
+  --ds-page: #f4f6fb;
+  --ds-paper: #ffffff;
+  --ds-ink: #202c43;
+  --ds-muted: #78869b;
+  --ds-line: #e2e8f1;
+
+  /* Identité Pokémon */
+  --ds-red: #ef4545;
+  --ds-red-dark: #c72d37;
+  --ds-red-soft: #ffe8e8;
+
+  --ds-blue: #2878c8;
+  --ds-blue-dark: #184f90;
+
+  --ds-yellow: #ffcf40;
+  --ds-yellow-soft: #fff4c8;
+
+  --ds-soft: #edf1f7;
+  --ds-overlay: rgb(17 30 53 / 78%);
+
+  /* ========================================
+     COULEURS DES 18 TYPES POKÉMON
+  ======================================== */
+
+  --ds-normal: #a8a77a;
+  --ds-fire: #ee8130;
+  --ds-water: #6390f0;
+  --ds-electric: #e8b829;
+  --ds-grass: #72bd57;
+  --ds-ice: #74c7cc;
+  --ds-fighting: #c22e28;
+  --ds-poison: #a33ea1;
+  --ds-ground: #c8a45a;
+  --ds-flying: #a98ff3;
+  --ds-psychic: #f95587;
+  --ds-bug: #a6b91a;
+  --ds-rock: #b6a136;
+  --ds-ghost: #735797;
+  --ds-dragon: #6f35fc;
+  --ds-dark: #705746;
+  --ds-steel: #9299b7;
+  --ds-fairy: #d685ad;
+
+  /* ========================================
+     FONDS DES CARTES PAR TYPE
+  ======================================== */
+
+  --ds-normal-bg: #eeeee7;
+  --ds-fire-bg: #ffe5d5;
+  --ds-water-bg: #dfebff;
+  --ds-electric-bg: #fff2c4;
+  --ds-grass-bg: #e1f3d9;
+  --ds-ice-bg: #ddf4f5;
+  --ds-fighting-bg: #f9dfdd;
+  --ds-poison-bg: #f3dff4;
+  --ds-ground-bg: #f4ead5;
+  --ds-flying-bg: #ebe4ff;
+  --ds-psychic-bg: #ffe0ea;
+  --ds-bug-bg: #f0f3d3;
+  --ds-rock-bg: #f2edd5;
+  --ds-ghost-bg: #e9e0f3;
+  --ds-dragon-bg: #e6deff;
+  --ds-dark-bg: #e9e2dd;
+  --ds-steel-bg: #e7e9f0;
+  --ds-fairy-bg: #fae2ee;
+
+  /* ========================================
+     EFFETS HOLOGRAPHIQUES
+  ======================================== */
+
+  --ds-holo-blue: rgb(94 204 255 / 55%);
+  --ds-holo-pink: rgb(255 124 220 / 55%);
+  --ds-holo-yellow: rgb(255 242 122 / 55%);
+  --ds-holo-white: rgb(255 255 255 / 65%);
+
+  /* ========================================
+     TYPOGRAPHIES
+  ======================================== */
+
+  --ds-font-body: "Nunito", sans-serif;
+  --ds-font-display: "Outfit", sans-serif;
+
+  /* ========================================
+     BORDURES ET ARRONDIS
+  ======================================== */
+
+  --ds-radius-card: 1.5rem;
+  --ds-radius-control: 0.9rem;
+
+  /* ========================================
+     OMBRES
+  ======================================== */
+
+  --ds-shadow-card: 0 8px 28px rgb(32 44 67 / 6%);
+  --ds-shadow-hover: 0 20px 48px rgb(32 44 67 / 13%);
+  --ds-shadow-pokedex: 0 8px 0 var(--ds-red-dark);
+
+  /* ========================================
+     ANIMATIONS
+  ======================================== */
+
+  --ds-motion-fast: 0.18s;
+  --ds-motion-normal: 0.35s;
+  --ds-motion-slow: 0.6s;
+}
+
+/* ==========================================
+   TAILWIND CSS V4 - DESIGN TOKENS
+========================================== */
+
+@theme inline {
+  /* Couleurs générales */
+  --color-page: var(--ds-page);
+  --color-paper: var(--ds-paper);
+  --color-ink: var(--ds-ink);
+  --color-muted: var(--ds-muted);
+  --color-line: var(--ds-line);
+
+  /* Couleurs Pokémon */
+  --color-poke-red: var(--ds-red);
+  --color-poke-red-dark: var(--ds-red-dark);
+  --color-poke-red-soft: var(--ds-red-soft);
+
+  --color-poke-blue: var(--ds-blue);
+  --color-poke-blue-dark: var(--ds-blue-dark);
+
+  --color-poke-yellow: var(--ds-yellow);
+  --color-poke-yellow-soft: var(--ds-yellow-soft);
+
+  --color-soft: var(--ds-soft);
+  --color-overlay: var(--ds-overlay);
+
+  /* Couleurs des types */
+  --color-type-normal: var(--ds-normal);
+  --color-type-fire: var(--ds-fire);
+  --color-type-water: var(--ds-water);
+  --color-type-electric: var(--ds-electric);
+  --color-type-grass: var(--ds-grass);
+  --color-type-ice: var(--ds-ice);
+  --color-type-fighting: var(--ds-fighting);
+  --color-type-poison: var(--ds-poison);
+  --color-type-ground: var(--ds-ground);
+  --color-type-flying: var(--ds-flying);
+  --color-type-psychic: var(--ds-psychic);
+  --color-type-bug: var(--ds-bug);
+  --color-type-rock: var(--ds-rock);
+  --color-type-ghost: var(--ds-ghost);
+  --color-type-dragon: var(--ds-dragon);
+  --color-type-dark: var(--ds-dark);
+  --color-type-steel: var(--ds-steel);
+  --color-type-fairy: var(--ds-fairy);
+
+  /* Fonds par type */
+  --color-bg-normal: var(--ds-normal-bg);
+  --color-bg-fire: var(--ds-fire-bg);
+  --color-bg-water: var(--ds-water-bg);
+  --color-bg-electric: var(--ds-electric-bg);
+  --color-bg-grass: var(--ds-grass-bg);
+  --color-bg-ice: var(--ds-ice-bg);
+  --color-bg-fighting: var(--ds-fighting-bg);
+  --color-bg-poison: var(--ds-poison-bg);
+  --color-bg-ground: var(--ds-ground-bg);
+  --color-bg-flying: var(--ds-flying-bg);
+  --color-bg-psychic: var(--ds-psychic-bg);
+  --color-bg-bug: var(--ds-bug-bg);
+  --color-bg-rock: var(--ds-rock-bg);
+  --color-bg-ghost: var(--ds-ghost-bg);
+  --color-bg-dragon: var(--ds-dragon-bg);
+  --color-bg-dark: var(--ds-dark-bg);
+  --color-bg-steel: var(--ds-steel-bg);
+  --color-bg-fairy: var(--ds-fairy-bg);
+
+  /* Typographies */
+  --font-sans: var(--ds-font-body);
+  --font-display: var(--ds-font-display);
+
+  /* Arrondis */
+  --radius-card: var(--ds-radius-card);
+  --radius-control: var(--ds-radius-control);
+
+  /* Ombres */
+  --shadow-card: var(--ds-shadow-card);
+  --shadow-card-hover: var(--ds-shadow-hover);
+  --shadow-pokedex: var(--ds-shadow-pokedex);
+}
+
+/* ==========================================
+   BASE
+========================================== */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+
+    background: var(--ds-page);
+    color: var(--ds-ink);
+
+    font-family: var(--ds-font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  ::selection {
+    background: var(--ds-yellow);
+    color: var(--ds-ink);
+  }
+}
+
+/* ==========================================
+   ANIMATIONS POKÉMON
+========================================== */
+
+/* Rotation Poké Ball */
+@keyframes pokeball-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Poké Ball qui bouge comme une capture */
+@keyframes pokeball-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  20%,
+  60% {
+    transform: rotate(-12deg);
+  }
+
+  40%,
+  80% {
+    transform: rotate(12deg);
+  }
+}
+
+/* Apparition des cartes */
+@keyframes pokemon-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Léger flottement des Pokémon */
+@keyframes pokemon-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Effet de brillance holographique */
+@keyframes holo-shine {
+  0% {
+    background-position: -200% center;
+  }
+
+  100% {
+    background-position: 200% center;
+  }
+}
+
+/* Petit rebond */
+@keyframes pokemon-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-12px);
+  }
+
+  70% {
+    transform: translateY(3px);
+  }
+}
+
+/* ==========================================
+   ANIMATIONS TAILWIND
+========================================== */
+
+@theme {
+  --animate-pokeball: pokeball-spin 1.2s linear infinite;
+
+  --animate-pokeball-wiggle: pokeball-wiggle 0.65s ease-in-out;
+
+  --animate-pokemon-appear: pokemon-appear 0.45s ease-out both;
+
+  --animate-pokemon-float: pokemon-float 3s ease-in-out infinite;
+
+  --animate-holo-shine: holo-shine 2s linear infinite;
+
+  --animate-pokemon-bounce: pokemon-bounce 0.5s ease-out;
+}
+
+/* ==========================================
+   ACCESSIBILITÉ
+========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
