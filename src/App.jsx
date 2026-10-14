@@ -73,8 +73,7 @@ function App() {
   const [pokemonLoading, setPokemonLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [capturing, setCapturing] = useState(null);
-
+  // Catalogue national
   useEffect(() => {
     const controller = new AbortController();
 
@@ -117,6 +116,7 @@ function App() {
     return () => controller.abort();
   }, []);
 
+  // Filtres type et génération
   useEffect(() => {
     const controller = new AbortController();
 
@@ -130,6 +130,7 @@ function App() {
                 signal: controller.signal,
               })
             : Promise.resolve(null),
+
           generation
             ? fetch(`${API}/generation/${generation}`, {
                 signal: controller.signal,
@@ -182,6 +183,7 @@ function App() {
     return () => controller.abort();
   }, [type, generation]);
 
+  // Recherche et filtrage
   const filteredCatalogue = useMemo(() => {
     const search = query.trim().toLowerCase();
     const numericSearch = search.replace(/^#/, "");
@@ -210,6 +212,7 @@ function App() {
 
   const visibleIds = visiblePokemon.map((item) => item.id).join(",");
 
+  // Chargement des Pokémon affichés
   useEffect(() => {
     if (catalogueLoading || filtersLoading) return;
 
@@ -254,6 +257,7 @@ function App() {
     return () => controller.abort();
   }, [visibleIds, catalogueLoading, filtersLoading]);
 
+  // Informations de la fiche détaillée
   useEffect(() => {
     if (!selected) {
       setSpeciesDetail(null);
@@ -278,7 +282,7 @@ function App() {
           setSpeciesDetail(data);
         }
       } catch {
-        // La fiche reste accessible.
+        // La fiche reste accessible sans description.
       }
     }
 
@@ -287,6 +291,7 @@ function App() {
     return () => controller.abort();
   }, [selected]);
 
+  // Fermer la fiche avec Échap
   useEffect(() => {
     if (!selected) return;
 
@@ -322,22 +327,9 @@ function App() {
     });
   }
 
+  // Ouverture directe : aucune animation de capture
   function openPokemon(item) {
-    if (capturing) return;
-
-    if (reduceMotion) {
-      setSelected(item);
-      return;
-    }
-
-    setCapturing(item);
-  }
-
-  function finishCapture() {
-    if (!capturing) return;
-
-    setSelected(capturing);
-    setCapturing(null);
+    setSelected(item);
   }
 
   const loading = catalogueLoading || filtersLoading || pokemonLoading;
@@ -360,7 +352,10 @@ function App() {
         {/* RECHERCHE */}
         <motion.section
           initial={reduceMotion ? false : { opacity: 0, y: -15 }}
-          animate={{ opacity: 1, y: 0 }}
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
           transition={{ duration: 0.5 }}
           className="mb-10"
         >
@@ -424,9 +419,18 @@ function App() {
               {(query || type || generation) && (
                 <motion.button
                   type="button"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
+                  initial={{
+                    opacity: 0,
+                    scale: 0.9,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    scale: 1,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.9,
+                  }}
                   onClick={resetFilters}
                   className="rounded-control text-poke-red hover:bg-poke-red-soft px-4 py-3 text-sm font-extrabold transition"
                 >
@@ -441,12 +445,7 @@ function App() {
         <section>
           <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <motion.div
-                whileHover={reduceMotion ? {} : { rotate: 25, scale: 1.08 }}
-                transition={{ type: "spring", stiffness: 250 }}
-              >
-                <Pokeball className="h-11 w-11" />
-              </motion.div>
+              <Pokeball className="h-11 w-11" />
 
               <div>
                 <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">
@@ -512,19 +511,23 @@ function App() {
             ) : pokemon.length === 0 ? (
               <motion.div
                 key="empty"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{
+                  opacity: 0,
+                  y: 12,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
                 exit={{ opacity: 0 }}
                 className="rounded-card border-line bg-paper shadow-card border p-12 text-center"
               >
-                <div className="mb-5 text-5xl">?</div>
-
                 <h2 className="font-display text-2xl font-bold">
                   Aucun Pokémon trouvé.
                 </h2>
 
                 <p className="text-muted mt-3 text-sm">
-                  Même le Professeur Chen ne trouve rien.
+                  Essaie une autre recherche.
                 </p>
 
                 <button
@@ -541,8 +544,11 @@ function App() {
                 initial={reduceMotion ? false : { opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{
+                  duration: 0.2,
+                }}
               >
+                {/* CARTES POKÉMON */}
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {pokemon.map((item, index) => (
                     <RandomUser
@@ -554,6 +560,7 @@ function App() {
                   ))}
                 </div>
 
+                {/* PAGINATION */}
                 {totalPages > 1 && (
                   <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
                     <motion.button
@@ -587,52 +594,7 @@ function App() {
         </section>
       </div>
 
-      {/* ANIMATION DE CAPTURE */}
-      <AnimatePresence>
-        {capturing && (
-          <motion.div
-            key="capture"
-            className="bg-overlay fixed inset-0 z-[60] flex items-center justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-          >
-            <motion.div
-              className="flex flex-col items-center gap-6"
-              initial={{ scale: 0.4, opacity: 0 }}
-              animate={{
-                scale: [0.4, 1.2, 1, 1],
-                opacity: 1,
-              }}
-              transition={{
-                duration: 0.65,
-                times: [0, 0.4, 0.65, 1],
-                ease: "easeOut",
-              }}
-              onAnimationComplete={finishCapture}
-            >
-              <motion.div
-                animate={{
-                  rotate: [0, -18, 18, -10, 10, 0],
-                }}
-                transition={{
-                  duration: 0.65,
-                  ease: "easeInOut",
-                }}
-              >
-                <Pokeball className="shadow-card-hover h-28 w-28 border-[6px]" />
-              </motion.div>
-
-              <p className="font-display text-lg font-black text-white">
-                {formatPokemonName(capturing.name)}
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* MODAL */}
+      {/* FICHE DÉTAILLÉE */}
       <AnimatePresence>
         {selected && (
           <motion.div
@@ -640,7 +602,9 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2 }}
+            transition={{
+              duration: reduceMotion ? 0 : 0.2,
+            }}
             className="bg-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 backdrop-blur-sm"
             onClick={() => setSelected(null)}
           >
@@ -649,22 +613,36 @@ function App() {
               aria-modal="true"
               aria-label={`Fiche de ${selected.name}`}
               initial={
-                reduceMotion ? false : { opacity: 0, scale: 0.85, y: 30 }
+                reduceMotion
+                  ? false
+                  : {
+                      opacity: 0,
+                      scale: 0.95,
+                      y: 15,
+                    }
               }
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={{
+                opacity: 1,
+                scale: 1,
+                y: 0,
+              }}
               exit={
                 reduceMotion
                   ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.92, y: 15 }
+                  : {
+                      opacity: 0,
+                      scale: 0.97,
+                      y: 10,
+                    }
               }
               transition={{
-                type: "spring",
-                stiffness: 300,
-                damping: 27,
+                duration: reduceMotion ? 0 : 0.25,
+                ease: "easeOut",
               }}
               className="rounded-card bg-paper shadow-card-hover relative my-auto w-full max-w-4xl overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
+              {/* FERMER */}
               <button
                 type="button"
                 onClick={() => setSelected(null)}
@@ -675,6 +653,7 @@ function App() {
               </button>
 
               <div className="grid md:grid-cols-2">
+                {/* ILLUSTRATION */}
                 <div
                   className={`relative flex min-h-80 flex-col items-center justify-center overflow-hidden p-8 ${selectedBackground}`}
                 >
@@ -690,18 +669,17 @@ function App() {
                     initial={
                       reduceMotion
                         ? false
-                        : { scale: 0.45, opacity: 0, rotate: -12 }
+                        : {
+                            scale: 0.9,
+                            opacity: 0,
+                          }
                     }
                     animate={{
                       scale: 1,
                       opacity: 1,
-                      rotate: 0,
                     }}
                     transition={{
-                      type: "spring",
-                      stiffness: 210,
-                      damping: 16,
-                      delay: 0.08,
+                      duration: 0.35,
                     }}
                     className="relative z-10 h-64 w-64 object-contain drop-shadow-xl sm:h-80 sm:w-80"
                   />
@@ -713,6 +691,7 @@ function App() {
                   </div>
                 </div>
 
+                {/* INFORMATIONS */}
                 <div className="max-h-[75vh] overflow-y-auto p-7 sm:p-9">
                   <p className="text-poke-red text-xs font-extrabold tracking-widest uppercase">
                     Pokédex national
@@ -734,9 +713,11 @@ function App() {
                     </p>
                   )}
 
+                  {/* TAILLE ET POIDS */}
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     <div className="rounded-control bg-page p-4">
                       <p className="text-muted text-xs font-bold">Taille</p>
+
                       <p className="font-display mt-1 text-xl font-black">
                         {(selected.height / 10).toLocaleString("fr-FR")} m
                       </p>
@@ -744,12 +725,14 @@ function App() {
 
                     <div className="rounded-control bg-page p-4">
                       <p className="text-muted text-xs font-bold">Poids</p>
+
                       <p className="font-display mt-1 text-xl font-black">
                         {(selected.weight / 10).toLocaleString("fr-FR")} kg
                       </p>
                     </div>
                   </div>
 
+                  {/* TALENTS */}
                   <div className="mt-6">
                     <h3 className="font-display text-lg font-black">Talents</h3>
 
@@ -760,12 +743,14 @@ function App() {
                           className="bg-poke-red-soft text-poke-red-dark rounded-full px-4 py-2 text-xs font-extrabold"
                         >
                           {formatPokemonName(item.ability.name)}
+
                           {item.is_hidden ? " · Caché" : ""}
                         </span>
                       ))}
                     </div>
                   </div>
 
+                  {/* STATISTIQUES */}
                   <div className="mt-7">
                     <h3 className="font-display text-lg font-black">
                       Statistiques
@@ -785,7 +770,13 @@ function App() {
 
                           <div className="bg-soft h-2.5 overflow-hidden rounded-full">
                             <motion.div
-                              initial={reduceMotion ? false : { width: 0 }}
+                              initial={
+                                reduceMotion
+                                  ? false
+                                  : {
+                                      width: 0,
+                                    }
+                              }
                               animate={{
                                 width: `${Math.min(
                                   100,
@@ -793,9 +784,8 @@ function App() {
                                 )}%`,
                               }}
                               transition={{
-                                duration: reduceMotion ? 0 : 0.65,
-                                delay: reduceMotion ? 0 : 0.18 + index * 0.08,
-                                ease: "easeOut",
+                                duration: reduceMotion ? 0 : 0.6,
+                                delay: reduceMotion ? 0 : 0.1 + index * 0.06,
                               }}
                               className="bg-poke-blue h-full rounded-full"
                             />
