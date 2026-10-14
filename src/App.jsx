@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import RandomUser, {
@@ -52,18 +52,23 @@ function Pokeball({ className = "", animated = false }) {
   );
 }
 
-function App() {
+export default function App() {
   const reduceMotion = useReducedMotion();
+  const observerRef = useRef(null);
+  const cacheRef = useRef(new Map());
 
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
   const [generation, setGeneration] = useState("");
-  const [page, setPage] = useState(1);
 
   const [catalogue, setCatalogue] = useState([]);
-  const [typeIds, setTypeIds] = useState(null);
-  const [generationIds, setGenerationIds] = useState(null);
+  const [filters, setFilters] = useState({
+    key: "|",
+    typeIds: null,
+    generationIds: null,
+  });
 
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [pokemon, setPokemon] = useState([]);
   const [selected, setSelected] = useState(null);
   const [speciesDetail, setSpeciesDetail] = useState(null);
@@ -71,14 +76,20 @@ function App() {
   const [catalogueLoading, setCatalogueLoading] = useState(true);
   const [filtersLoading, setFiltersLoading] = useState(false);
   const [pokemonLoading, setPokemonLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  // Catalogue national
+  const [catalogueError, setCatalogueError] = useState("");
+  const [filterError, setFilterError] = useState("");
+  const [pokemonError, setPokemonError] = useState("");
+
+  const filterKey = `${type}|${generation}`;
+
+  // Chargement du catalogue
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadCatalogue() {
       setCatalogueLoading(true);
+      setCatalogueError("");
 
       try {
         const response = await fetch(`${API}/pokemon-species?limit=2000`, {
@@ -86,7 +97,7 @@ function App() {
         });
 
         if (!response.ok) {
-          throw new Error("Le Pokédex est indisponible.");
+          throw new Error("Impossible de charger le Pokédex.");
         }
 
         const data = await response.json();
@@ -99,10 +110,12 @@ function App() {
           .filter((item) => item.id > 0)
           .sort((a, b) => a.id - b.id);
 
-        setCatalogue(list);
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError(err.message);
+        if (!controller.signal.aborted) {
+          setCatalogue(list);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setCatalogueError(error.message);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -116,12 +129,13 @@ function App() {
     return () => controller.abort();
   }, []);
 
-  // Filtres type et génération
+  // Chargement des filtres
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadFilters() {
       setFiltersLoading(true);
+      setFilterError("");
 
       try {
         const [typeResponse, generationResponse] = await Promise.all([
@@ -129,47 +143,44 @@ function App() {
             ? fetch(`${API}/type/${type}`, {
                 signal: controller.signal,
               })
-            : Promise.resolve(null),
+            : null,
 
           generation
             ? fetch(`${API}/generation/${generation}`, {
                 signal: controller.signal,
               })
-            : Promise.resolve(null),
+            : null,
         ]);
 
-        if (typeResponse && !typeResponse.ok) {
-          throw new Error("Impossible de charger les types.");
+        if (
+          (typeResponse && !typeResponse.ok) ||
+          (generationResponse && !generationResponse.ok)
+        ) {
+          throw new Error("Impossible de charger les filtres.");
         }
 
-        if (generationResponse && !generationResponse.ok) {
-          throw new Error("Impossible de charger la génération.");
-        }
-
-        const typeData = typeResponse ? await typeResponse.json() : null;
-
-        const generationData = generationResponse
-          ? await generationResponse.json()
-          : null;
+        const [typeData, generationData] = await Promise.all([
+          typeResponse ? typeResponse.json() : null,
+          generationResponse ? generationResponse.json() : null,
+        ]);
 
         if (controller.signal.aborted) return;
 
-        setTypeIds(
-          typeData
+        setFilters({
+          key: filterKey,
+          typeIds: typeData
             ? new Set(typeData.pokemon.map((item) => getId(item.pokemon.url)))
             : null,
-        );
 
-        setGenerationIds(
-          generationData
+          generationIds: generationData
             ? new Set(
                 generationData.pokemon_species.map((item) => getId(item.url)),
               )
             : null,
-        );
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError(err.message);
+        });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setFilterError(error.message);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -181,50 +192,58 @@ function App() {
     loadFilters();
 
     return () => controller.abort();
-  }, [type, generation]);
+  }, [type, generation, filterKey]);
 
-  // Recherche et filtrage
+  const filtersReady = filters.key === filterKey && !filtersLoading;
+
+  // Recherche + filtres
   const filteredCatalogue = useMemo(() => {
+    if (!filtersReady || filterError) return [];
+
     const search = query.trim().toLowerCase();
     const numericSearch = search.replace(/^#/, "");
 
     return catalogue.filter((item) => {
-      const matchesName =
+      const matchesSearch =
         !search ||
         item.name.includes(search) ||
         String(item.id) === numericSearch;
 
-      const matchesType = !typeIds || typeIds.has(item.id);
+      const matchesType = !filters.typeIds || filters.typeIds.has(item.id);
 
-      const matchesGeneration = !generationIds || generationIds.has(item.id);
+      const matchesGeneration =
+        !filters.generationIds || filters.generationIds.has(item.id);
 
-      return matchesName && matchesType && matchesGeneration;
+      return matchesSearch && matchesType && matchesGeneration;
     });
-  }, [catalogue, query, typeIds, generationIds]);
+  }, [catalogue, query, filters, filtersReady, filterError]);
 
-  const totalPages = Math.ceil(filteredCatalogue.length / PAGE_SIZE);
-
-  const visiblePokemon = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-
-    return filteredCatalogue.slice(start, start + PAGE_SIZE);
-  }, [filteredCatalogue, page]);
+  const visiblePokemon = useMemo(
+    () => filteredCatalogue.slice(0, visibleCount),
+    [filteredCatalogue, visibleCount],
+  );
 
   const visibleIds = visiblePokemon.map((item) => item.id).join(",");
 
-  // Chargement des Pokémon affichés
+  // Chargement des Pokémon visibles
   useEffect(() => {
-    if (catalogueLoading || filtersLoading) return;
+    if (catalogueLoading || !filtersReady || catalogueError || filterError) {
+      return;
+    }
 
     const controller = new AbortController();
 
     async function loadPokemon() {
       setPokemonLoading(true);
-      setError("");
+      setPokemonError("");
 
       try {
         const results = await Promise.all(
           visiblePokemon.map(async (item) => {
+            if (cacheRef.current.has(item.id)) {
+              return cacheRef.current.get(item.id);
+            }
+
             const response = await fetch(`${API}/pokemon/${item.id}`, {
               signal: controller.signal,
             });
@@ -233,17 +252,20 @@ function App() {
               throw new Error("Impossible de charger les Pokémon.");
             }
 
-            return response.json();
+            const data = await response.json();
+
+            cacheRef.current.set(item.id, data);
+
+            return data;
           }),
         );
 
         if (!controller.signal.aborted) {
           setPokemon(results);
         }
-      } catch (err) {
-        if (err.name !== "AbortError") {
-          setError(err.message);
-          setPokemon([]);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPokemonError(error.message);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -255,9 +277,56 @@ function App() {
     loadPokemon();
 
     return () => controller.abort();
-  }, [visibleIds, catalogueLoading, filtersLoading]);
+  }, [visibleIds, catalogueLoading, filtersReady, catalogueError, filterError]);
 
-  // Informations de la fiche détaillée
+  // Chargement automatique au scroll
+  const hasMore = visibleCount < filteredCatalogue.length;
+
+  useEffect(() => {
+    if (
+      !hasMore ||
+      pokemonLoading ||
+      catalogueLoading ||
+      !filtersReady ||
+      catalogueError ||
+      filterError ||
+      pokemonError
+    ) {
+      return;
+    }
+
+    const element = observerRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount((count) =>
+            Math.min(count + PAGE_SIZE, filteredCatalogue.length),
+          );
+        }
+      },
+      {
+        rootMargin: "300px 0px",
+        threshold: 0,
+      },
+    );
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [
+    hasMore,
+    pokemonLoading,
+    catalogueLoading,
+    filtersReady,
+    filteredCatalogue.length,
+    catalogueError,
+    filterError,
+    pokemonError,
+  ]);
+
+  // Fiche détaillée
   useEffect(() => {
     if (!selected) {
       setSpeciesDetail(null);
@@ -266,7 +335,7 @@ function App() {
 
     const controller = new AbortController();
 
-    async function loadSpeciesDetail() {
+    async function loadSpecies() {
       setSpeciesDetail(null);
 
       try {
@@ -286,53 +355,43 @@ function App() {
       }
     }
 
-    loadSpeciesDetail();
+    loadSpecies();
 
     return () => controller.abort();
   }, [selected]);
 
-  // Fermer la fiche avec Échap
+  // Échap pour fermer la fiche
   useEffect(() => {
     if (!selected) return;
 
-    const handleEscape = (event) => {
+    function handleKeyDown(event) {
       if (event.key === "Escape") {
         setSelected(null);
       }
-    };
+    }
 
-    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("keydown", handleKeyDown);
 
-    return () => window.removeEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selected]);
 
   function updateFilter(setter, value) {
     setter(value);
-    setPage(1);
+    setVisibleCount(PAGE_SIZE);
+    setPokemon([]);
   }
 
   function resetFilters() {
     setQuery("");
     setType("");
     setGeneration("");
-    setPage(1);
+    setVisibleCount(PAGE_SIZE);
+    setPokemon([]);
   }
 
-  function changePage(nextPage) {
-    setPage(nextPage);
+  const loading = catalogueLoading || !filtersReady;
 
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
-  }
-
-  // Ouverture directe : aucune animation de capture
-  function openPokemon(item) {
-    setSelected(item);
-  }
-
-  const loading = catalogueLoading || filtersLoading || pokemonLoading;
+  const error = catalogueError || filterError || pokemonError;
 
   const frenchName = speciesDetail?.names?.find(
     (item) => item.language.name === "fr",
@@ -347,18 +406,10 @@ function App() {
   const selectedBackground = TYPE_CONFIG[selectedType]?.bg || "bg-bg-normal";
 
   return (
-    <main className="bg-page text-ink min-h-screen px-4 py-7 sm:px-8 sm:py-12">
+    <main className="bg-page text-ink min-h-screen px-4 py-8 sm:px-8 sm:py-12">
       <div className="mx-auto max-w-7xl">
         {/* RECHERCHE */}
-        <motion.section
-          initial={reduceMotion ? false : { opacity: 0, y: -15 }}
-          animate={{
-            opacity: 1,
-            y: 0,
-          }}
-          transition={{ duration: 0.5 }}
-          className="mb-10"
-        >
+        <section className="mb-10">
           <div className="relative">
             <svg
               viewBox="0 0 24 24"
@@ -389,7 +440,7 @@ function App() {
               value={type}
               onChange={(event) => updateFilter(setType, event.target.value)}
               aria-label="Filtrer par type"
-              className="rounded-control border-line bg-paper focus:border-poke-red border-2 px-5 py-3 text-sm font-extrabold transition outline-none"
+              className="rounded-control border-line bg-paper focus:border-poke-red border-2 px-5 py-3 text-sm font-extrabold outline-none"
             >
               <option value="">Tous les types</option>
 
@@ -406,7 +457,7 @@ function App() {
                 updateFilter(setGeneration, event.target.value)
               }
               aria-label="Filtrer par génération"
-              className="rounded-control border-line bg-paper focus:border-poke-red border-2 px-5 py-3 text-sm font-extrabold transition outline-none"
+              className="rounded-control border-line bg-paper focus:border-poke-red border-2 px-5 py-3 text-sm font-extrabold outline-none"
             >
               {GENERATIONS.map((item) => (
                 <option key={item.value} value={item.value}>
@@ -415,182 +466,111 @@ function App() {
               ))}
             </select>
 
-            <AnimatePresence>
-              {(query || type || generation) && (
-                <motion.button
-                  type="button"
-                  initial={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    scale: 1,
-                  }}
-                  exit={{
-                    opacity: 0,
-                    scale: 0.9,
-                  }}
-                  onClick={resetFilters}
-                  className="rounded-control text-poke-red hover:bg-poke-red-soft px-4 py-3 text-sm font-extrabold transition"
-                >
-                  Effacer les filtres ×
-                </motion.button>
-              )}
-            </AnimatePresence>
+            {(query || type || generation) && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-control text-poke-red hover:bg-poke-red-soft px-4 py-3 text-sm font-extrabold"
+              >
+                Effacer les filtres ×
+              </button>
+            )}
           </div>
-        </motion.section>
+        </section>
 
-        {/* RÉSULTATS */}
+        {/* POKÉDEX */}
         <section>
-          <div className="mb-7 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <Pokeball className="h-11 w-11" />
+          <div className="mb-8 flex items-center gap-4">
+            <Pokeball className="h-11 w-11" />
 
-              <div>
-                <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">
-                  Pokédex
-                </h1>
+            <div>
+              <h1 className="font-display text-3xl font-black tracking-tight sm:text-4xl">
+                Pokédex
+              </h1>
 
-                <p className="text-muted mt-1 text-sm font-semibold">
-                  {catalogueLoading || filtersLoading
-                    ? "Chargement du Pokédex..."
-                    : `${filteredCatalogue.length} Pokémon trouvés`}
-                </p>
-              </div>
+              <p className="text-muted mt-1 text-sm font-semibold">
+                {loading
+                  ? "Chargement du Pokédex..."
+                  : `${filteredCatalogue.length} Pokémon trouvés`}
+              </p>
             </div>
-
-            {!catalogueLoading && totalPages > 0 && (
-              <span className="bg-paper text-muted shadow-card rounded-full px-4 py-2 text-xs font-extrabold">
-                PAGE {page} / {totalPages}
-              </span>
-            )}
           </div>
 
-          <AnimatePresence mode="wait">
-            {loading ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex flex-col items-center justify-center py-24"
+          {error && (
+            <div className="rounded-card bg-paper shadow-card mb-8 p-8 text-center">
+              <p className="font-bold">{error}</p>
+
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-control bg-poke-red mt-4 px-5 py-3 text-sm font-bold text-white"
               >
-                <Pokeball className="mb-6 h-16 w-16" animated={!reduceMotion} />
+                Réessayer
+              </button>
+            </div>
+          )}
 
-                <p className="font-display text-lg font-bold">
-                  Recherche des Pokémon...
-                </p>
+          {!error && !loading && (
+            <>
+              {filteredCatalogue.length === 0 ? (
+                <div className="rounded-card bg-paper shadow-card p-12 text-center">
+                  <h2 className="font-display text-xl font-bold">
+                    Aucun Pokémon trouvé
+                  </h2>
 
-                <p className="text-muted mt-2 text-sm">
-                  Le Professeur Chen prépare les fiches.
-                </p>
-              </motion.div>
-            ) : error ? (
-              <motion.div
-                key="error"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="rounded-card border-line bg-paper shadow-card border p-12 text-center"
-              >
-                <h2 className="font-display text-2xl font-bold">
-                  Oups, une erreur est survenue.
-                </h2>
-
-                <p className="text-muted mt-3 text-sm">{error}</p>
-
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-control bg-poke-red mt-6 px-6 py-3 font-extrabold text-white"
-                >
-                  Réinitialiser
-                </button>
-              </motion.div>
-            ) : pokemon.length === 0 ? (
-              <motion.div
-                key="empty"
-                initial={{
-                  opacity: 0,
-                  y: 12,
-                }}
-                animate={{
-                  opacity: 1,
-                  y: 0,
-                }}
-                exit={{ opacity: 0 }}
-                className="rounded-card border-line bg-paper shadow-card border p-12 text-center"
-              >
-                <h2 className="font-display text-2xl font-bold">
-                  Aucun Pokémon trouvé.
-                </h2>
-
-                <p className="text-muted mt-3 text-sm">
-                  Essaie une autre recherche.
-                </p>
-
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="rounded-control bg-poke-red mt-6 px-6 py-3 font-extrabold text-white"
-                >
-                  Effacer les filtres
-                </button>
-              </motion.div>
-            ) : (
-              <motion.div
-                key={`${page}-${type}-${generation}-${query}`}
-                initial={reduceMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{
-                  duration: 0.2,
-                }}
-              >
-                {/* CARTES POKÉMON */}
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {pokemon.map((item, index) => (
-                    <RandomUser
-                      key={item.id}
-                      user={item}
-                      index={index}
-                      onSelect={openPokemon}
-                    />
-                  ))}
+                  <p className="text-muted mt-2 text-sm">
+                    Essaie une autre recherche.
+                  </p>
                 </div>
-
-                {/* PAGINATION */}
-                {totalPages > 1 && (
-                  <div className="mt-12 flex flex-wrap items-center justify-center gap-4">
-                    <motion.button
-                      type="button"
-                      whileTap={reduceMotion ? {} : { scale: 0.95 }}
-                      onClick={() => changePage(page - 1)}
-                      disabled={page === 1}
-                      className="rounded-control border-line bg-paper hover:border-poke-red border-2 px-6 py-3 text-sm font-extrabold transition disabled:opacity-30"
-                    >
-                      ← Précédent
-                    </motion.button>
-
-                    <span className="font-display text-sm font-black">
-                      {page} / {totalPages}
-                    </span>
-
-                    <motion.button
-                      type="button"
-                      whileTap={reduceMotion ? {} : { scale: 0.95 }}
-                      onClick={() => changePage(page + 1)}
-                      disabled={page >= totalPages}
-                      className="rounded-control bg-poke-red hover:bg-poke-red-dark px-6 py-3 text-sm font-extrabold text-white transition disabled:opacity-30"
-                    >
-                      Suivant →
-                    </motion.button>
+              ) : (
+                <>
+                  {/* GRILLE AVEC ANIMATION AU SCROLL */}
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {pokemon.map((item) => (
+                      <RandomUser
+                        key={item.id}
+                        user={item}
+                        onSelect={setSelected}
+                      />
+                    ))}
                   </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+
+                  {/* CHARGEMENT INFINI */}
+                  {hasMore && (
+                    <div
+                      ref={observerRef}
+                      className="flex min-h-28 items-center justify-center py-10"
+                    >
+                      {pokemonLoading && (
+                        <div className="flex items-center gap-3">
+                          <Pokeball
+                            className="h-7 w-7"
+                            animated={!reduceMotion}
+                          />
+
+                          <span className="text-muted text-sm font-semibold">
+                            Chargement des Pokémon...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!hasMore && !pokemonLoading && (
+                    <p className="text-muted py-12 text-center text-sm font-semibold">
+                      Tous les Pokémon ont été affichés.
+                    </p>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {loading && (
+            <div className="flex justify-center py-20">
+              <Pokeball className="h-12 w-12" animated={!reduceMotion} />
+            </div>
+          )}
         </section>
       </div>
 
@@ -602,9 +582,7 @@ function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{
-              duration: reduceMotion ? 0 : 0.2,
-            }}
+            transition={{ duration: reduceMotion ? 0 : 0.2 }}
             className="bg-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 backdrop-blur-sm"
             onClick={() => setSelected(null)}
           >
@@ -613,36 +591,14 @@ function App() {
               aria-modal="true"
               aria-label={`Fiche de ${selected.name}`}
               initial={
-                reduceMotion
-                  ? false
-                  : {
-                      opacity: 0,
-                      scale: 0.95,
-                      y: 15,
-                    }
+                reduceMotion ? false : { opacity: 0, scale: 0.96, y: 12 }
               }
-              animate={{
-                opacity: 1,
-                scale: 1,
-                y: 0,
-              }}
-              exit={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : {
-                      opacity: 0,
-                      scale: 0.97,
-                      y: 10,
-                    }
-              }
-              transition={{
-                duration: reduceMotion ? 0 : 0.25,
-                ease: "easeOut",
-              }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+              transition={{ duration: reduceMotion ? 0 : 0.25 }}
               className="rounded-card bg-paper shadow-card-hover relative my-auto w-full max-w-4xl overflow-hidden"
               onClick={(event) => event.stopPropagation()}
             >
-              {/* FERMER */}
               <button
                 type="button"
                 onClick={() => setSelected(null)}
@@ -653,7 +609,6 @@ function App() {
               </button>
 
               <div className="grid md:grid-cols-2">
-                {/* ILLUSTRATION */}
                 <div
                   className={`relative flex min-h-80 flex-col items-center justify-center overflow-hidden p-8 ${selectedBackground}`}
                 >
@@ -663,24 +618,9 @@ function App() {
                     #{String(selected.id).padStart(4, "0")}
                   </span>
 
-                  <motion.img
+                  <img
                     src={getPokemonArtwork(selected)}
-                    alt={selected.name}
-                    initial={
-                      reduceMotion
-                        ? false
-                        : {
-                            scale: 0.9,
-                            opacity: 0,
-                          }
-                    }
-                    animate={{
-                      scale: 1,
-                      opacity: 1,
-                    }}
-                    transition={{
-                      duration: 0.35,
-                    }}
+                    alt={formatPokemonName(selected.name)}
                     className="relative z-10 h-64 w-64 object-contain drop-shadow-xl sm:h-80 sm:w-80"
                   />
 
@@ -691,7 +631,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* INFORMATIONS */}
                 <div className="max-h-[75vh] overflow-y-auto p-7 sm:p-9">
                   <p className="text-poke-red text-xs font-extrabold tracking-widest uppercase">
                     Pokédex national
@@ -713,11 +652,9 @@ function App() {
                     </p>
                   )}
 
-                  {/* TAILLE ET POIDS */}
                   <div className="mt-6 grid grid-cols-2 gap-3">
                     <div className="rounded-control bg-page p-4">
                       <p className="text-muted text-xs font-bold">Taille</p>
-
                       <p className="font-display mt-1 text-xl font-black">
                         {(selected.height / 10).toLocaleString("fr-FR")} m
                       </p>
@@ -725,14 +662,12 @@ function App() {
 
                     <div className="rounded-control bg-page p-4">
                       <p className="text-muted text-xs font-bold">Poids</p>
-
                       <p className="font-display mt-1 text-xl font-black">
                         {(selected.weight / 10).toLocaleString("fr-FR")} kg
                       </p>
                     </div>
                   </div>
 
-                  {/* TALENTS */}
                   <div className="mt-6">
                     <h3 className="font-display text-lg font-black">Talents</h3>
 
@@ -743,21 +678,19 @@ function App() {
                           className="bg-poke-red-soft text-poke-red-dark rounded-full px-4 py-2 text-xs font-extrabold"
                         >
                           {formatPokemonName(item.ability.name)}
-
                           {item.is_hidden ? " · Caché" : ""}
                         </span>
                       ))}
                     </div>
                   </div>
 
-                  {/* STATISTIQUES */}
                   <div className="mt-7">
                     <h3 className="font-display text-lg font-black">
                       Statistiques
                     </h3>
 
                     <div className="mt-4 space-y-4">
-                      {selected.stats.map((item, index) => (
+                      {selected.stats.map((item) => (
                         <div key={item.stat.name}>
                           <div className="mb-2 flex items-center justify-between text-xs font-extrabold">
                             <span>
@@ -769,25 +702,14 @@ function App() {
                           </div>
 
                           <div className="bg-soft h-2.5 overflow-hidden rounded-full">
-                            <motion.div
-                              initial={
-                                reduceMotion
-                                  ? false
-                                  : {
-                                      width: 0,
-                                    }
-                              }
-                              animate={{
+                            <div
+                              className="bg-poke-blue h-full rounded-full"
+                              style={{
                                 width: `${Math.min(
                                   100,
                                   (item.base_stat / 255) * 100,
                                 )}%`,
                               }}
-                              transition={{
-                                duration: reduceMotion ? 0 : 0.6,
-                                delay: reduceMotion ? 0 : 0.1 + index * 0.06,
-                              }}
-                              className="bg-poke-blue h-full rounded-full"
                             />
                           </div>
                         </div>
@@ -803,5 +725,3 @@ function App() {
     </main>
   );
 }
-
-export default App;
